@@ -9,5 +9,9 @@
 date()
 
 ```
-The text continues here.
+Data is an infinite emptiness, much like the Buddhist conception of Sunyata - by itself it speaks of nothing and the ways to interpret it are equally innumerable. It is only when we approach the endless sea of data and its interpretations with some kind of defined framework of meaning, that the data begins to speak to us. The Science of Data is therefore about wrangling infinite non-sense into momentary finite sense, of drawing a bucket of water from the ocean. What I aim to learn in this course is precisely this, our attempts at grasping the ungraspable.
+
+As for the initial exercises, I am not certain of what I gained and didn't gain from them. Code is not easily learned by merely running something someone else has written, coding can be only learned by writing the arguments yourself. Exercise Set 1 provides a useful overview of some basics of course but if one were to ask me to write anything elaborate in R at this moment, I would cower back into the books. It is also difficult to gauge what was difficult and what was not at this stage, as I am merely reading and pressing Ctrl + Enter in RStudio, attempting to understand the logic by which R speaks. I didn't feel particularly challenged by anything but simultaneously I didn't feel I got a solid grasp of anything either. I think the solidity will only arrive once I get to do the dirty work myself. To some extent the basics seem rather simple and clear but I am certain I will still be rather slow at the start, as the exercises get more complicated - but I suppose it is a welcome challenge.The couple of exercises in chapters 3 and 4 helped a little bit to get some feeling for using R yourself, if one didn't look at the solutions right away.
+
+<https://github.com/Voidlessness/IODS-project>
 
