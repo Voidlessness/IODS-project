@@ -5,9 +5,49 @@
 - Describe your work and results clearly. 
 - Assume the reader has an introductory course level understanding of writing and reading R code as well as statistical methods.
 - Assume the reader has no previous knowledge of your data or the more advanced methods you are using.
-
 ```{r}
 date()
 ```
+In the following, I present some basic data visualization and regression modelling, done to an analysis dataset created in the "data wrangling" exercise. The dataset consists of students during a statistics course responding to a questionnaire about learning statistics. The statements posed to the students take on values from 1-5, depending on how much they agree with the statement, 1 being total disagreement and 5 being total agreement. The questions are further divided in the data to deep, strategic and surface questions (abbreviated as deep, stra and surf, respectively. These values have been averaged in the data below. Further, the data consists of the gender of each student, their age, attitude toward statistics and the test score points (named Points) they got at the end of the statistics course. The idea is now to explore which of these variables, if any, significantly may have contributed to the final points score the students got on their test and to see if, using linear regression modelling, we can predict which of the variables may contribute to test success.
 
-Here we go again...
+Linear regression essentially compares a dependent variable of our choosing - in this case the test score Points - to one or multiple explanatory variables (e.g the various types of questions, gender, age etc.) in order to test if there is a linear/causal relationship between these variables. I will present the code I have used and in the comments above the code attempt to explain what I have done and what the results obtained mean.  
+```{r}
+# Here I load tidyverse, read the analysis dataset made in the Data wrangling exercise, explore the dimensions of the data using str() and head(), and create a basic table showing all the variables.
+library(tidyverse)
+read.csv(file = 'C:/IODS/IODS-project/data/analysis_dataset.csv')
+analysis_dataset <- read.csv(file = 'C:/IODS/IODS-project/data/analysis_dataset.csv')
+str(analysis_dataset)
+head(analysis_dataset)
+analysis_dataset
+```
+```{r}
+# This is the visual overview of the data, done by creating a scatterplot matrix using ggplot2 and Ggally. A plot "p" is created by using the ggpairs command, within which we specify the data we are wanting to visualize, and how we wish to map it and present it. With the aes() command, we specify that we especially want to visually separate the gender variable with two colors, seen below. Below the code a rather intimidating scatterplot matrix is created. On the first row the matrix shows the distribution of the values in each group in the data, their median, min/max values, possible outliers in the data and the quartiles. Then the plot essentially shows the distribution of each of our values in both genders and how the variables correlate with each other. The distributions are shown both in scatter plots and normal distributions. Finally the graph presents numeric correlation values when comparing the various variables with each other and also shows separate correlation values for different genders. Correlation can take values between -1 to 1, where both extremes note significant correlation between the variables and 0 indicating no correlation.
+library(ggplot2)
+library (GGally)
+p <- ggpairs(analysis_dataset, mapping = aes(col = gender), lower = list(combo = wrap("facethist", bins = 20)))
+p
+```
+```{r}
+# Here a linear regression model is created with the target (dependent) variable being points on the test (Points) and the explanatory variables being attitude, surface level questions and age. First the lm() command prints out "Residuals" which shows the difference between the actual values of the compared variables given in the data and what the linear model would predict them to be based on the input we've given. Next, the coefficients section we first get the "intercept" values. In the case of our data, the "Estimate" for intercept means the average points score on the test expected, when taking into account all the explanatory variables we have selected from the dataset - in this case it amounts to about 16.8 points. Below this are the various slope values for the different explanatory variables we've chosen - the slope describes the effect the various explanatory variables have on the test score. For example a point increase in the "attitude" variable would increase the test scores by 3.42388 points. The Std.error column represents the level of uncertainty with each coefficient - ideally this should be minimal. Next, the t-value is the t-statistic for the dependent variable, calculated as Estimate/Std. Error - it depicts how far our coefficient values are from 0. The further away it is, the stronger the correlation between the dependent and explanatory value. Finally, the "Pr(>|t|)" column represents the p-value for the t-statistic, which tells us the level of significance between the dependent and explanatory values. The p-value should be less that 0.05 to conclude that there is a significant effect between the two variables. In this comparison for example, the variable "attitude" seems to be highly significant when comparing it to the dependent variable "Points", meaning that there is indeed a significant relationship between the attitude of the students during the statistics course and their test scores. In the  In the next R chunk, I remove one of the non-significant variables and run the test again. Next, the residual standard error is a measure of the quality of the regression fit, meaning in this case, how much the average test score points deviate from the regression line fit. The multiple R-squared is yet another measure of how well the linear model fits the actual data, being a measure of the linearity between the dependent variable (Points) and the explanatory variables. R-squared takes on values between 0 to 1, where 0 denotes a non-linear relationship and 1 a total linear relationship. Ideally, we'd like this value to be close to 1 if we wish to conclude that the explanatory variables chosen causally explain changes in the dependent variable. This this case the R-squared value is rather small and close to 0, so the linear fit is not great.
+library(GGally)
+library(ggplot2)
+analysis_model <- lm(Points ~ attitude + surf + Age, data = analysis_dataset)
+summary(analysis_model)
+```
+
+```{r}
+# Here I construct another linear model of the data, but removing "surf" as a non-significant variable.
+library(GGally)
+library(ggplot2)
+analysis_model <- lm(Points ~ attitude + Age, data = analysis_dataset)
+summary(analysis_model)
+```
+        
+
+```{r}
+# Finally, several plots are made to graphically estimate the validity of our model assumptions, these plots being "Residual vs. Fitted", "Normal Q-Q" and "Residuals vs Leverage". Residual vs. Fitted shows how closely variables in our chosen parts of the data fit the regression line at 0. The closer they are the better the fit and linearity holds. This plot can also be used to visualize outliers easily, for example data points 56, 145 and 35 seem to stray quite far from the regression line. The Normal Q-Q plot uses the Q1 and Q3 quantiles of the values of each variable to estimate whether or not the values come from a similar distribution (e.g a normal distribution) or not. If they do, they should form a rather straight line, which can be seen in the example data. This is useful when performing statistical significance tests on the data, as many of them may assume for example that the data is normally distributed. The Q-Q plot is an easy way to visualize this quickly and decide whether or not our significance testing methods are appropriate or not. Finally the Residuals vs Leverage once again plots the residuals of our data but this time against leverage. Leverage indicates how much the coefficients in the regression model would change if a any given point of data was removed. The higher the leverage value for a given point of data, the stronger its effect on the coefficients. In the plot "Cook's distance" denotes a region where if a point of data exists there, it would have a highly significant effect on the coefficients if it were removed. In this dataset, however, no points fall within Cook's distance and thereby we can safely assume that no significant outlier is skewing our data. 
+library(GGally)
+library(ggplot2)
+analysis_model <- lm(Points ~ attitude + surf + Age, data = analysis_dataset)
+plot(analysis_model, which = c(1,2,5))
+```
