@@ -1,0 +1,134 @@
+# Analysis exercise 2 - Logistic regression
+
+```{r}
+date()
+```
+In this analysis exercise we study a dataset that relates alcohol consumption to student performance in mathematics and Portugese language.
+```{r}
+# First reading the data from my local file after the data wrangling exercise. Printing the data for a clear visualization.
+library(tidyverse)
+alc_data <- read.csv(file = 'C:/IODS/IODS-project/data/alc_data.csv', sep = ",", header = TRUE)
+alc_data
+```
+As can be observed, the data contains multiple variables characterizing each student, as well as their performance in exams (variables G1-3). The task is to select four of these variables and relate them to the variables describing alcohol use, seeing if student performance is significantly affected by alcohol use. For my interest I will compare high alcohol use (high_use) with "health", "absences", "failures", "studytime", trying to understand whether or not those students that have high alcohol use have diminished health, more absences from class, more failures in class and less studytime. If the data turns out to be this way, I think I could conclude that high alcohol consumptions leads to poorer overall health, which contributes to more absences from class and less study time, which leads to more failure in classes and therefore overall worse performance in class.
+
+First let's explore the data numerically first by creating a summary table of our chose variables, high alcohol use and the average grades.
+
+```{r}
+alc_data %>% group_by(alc_use, high_use, health, absences, failures, studytime) %>% summarise(count = n(), mean_grade = mean(G3))
+```
+
+Next, let's do a few boxplots between our variables, keeping high alcohol use as a constant.
+
+```{r}
+# boxplot of high alcohol use and absences
+g1 <- ggplot(alc_data, aes(x = high_use, y = absences))
+
+# drawing the plot and defining it as a boxplot
+g1 + geom_boxplot()
+```
+As can be seen, high alcohol use seems to increase absences from class.
+
+```{r}
+# boxplot of high alcohol use and health
+g2 <- ggplot(alc_data, aes(x = high_use, y = health))
+
+# drawing the plot and defining it as a boxplot
+g2 + geom_boxplot()
+```
+Seems that high alcohol use does not in this case correlate with changes in the health score. Strange.
+
+```{r}
+# boxplot of high alcohol use and failures
+g3 <- ggplot(alc_data, aes(x = high_use, y = failures))
+
+# drawing the plot and defining it as a boxplot
+g3 + geom_boxplot()
+```
+Again, cannot discern any clear differences. Most of the students had no failures in class, and the few outliers that  did don't seem to differ whether or not they had high alcohol consumption or not.
+
+```{r}
+# boxplot of high alcohol use and study time
+g4 <- ggplot(alc_data, aes(x = high_use, y = studytime))
+
+# drawing the plot and defining it as a boxplot
+g4 + geom_boxplot()
+```
+Study time seems variable with high alcohol consumption, although the medians seems to be the same. High alcohol consumption seems to reduce studytime, although there also seems to be a lot more variation in the non-high drinkers. Due to the variation, I doubt this difference would be significant.
+
+Next let's do a logistic regression model with high alcohol use (true/false) being our target variable.
+
+```{r}
+# creating logistic regression model "m" with the chosen variables.
+m <- glm(high_use ~ failures + absences + studytime + health, data = alc_data)
+
+# summary of the model
+summary(m)
+```
+Based on the model, it seems that high alcohol use significantly affects failures, absences and studytime. Fascinatingly, heatlh does not seem to be signifcantly affected by high alcohol use. Failures and absences are positively correlated with high alcohol use, indicating an increase in class failure and absences from class due to high alcohol use. Interestingly study time has a significant negative correlation with high alcohol use, indicating that study time decreases with high alcohol use. Let's take a closer look by computing the odds ratios of the coefficients and their confidence intervals.
+
+```{r}
+# compute odds ratios for the coefficients of the model m (OR)
+OR <- coef(m) %>% exp
+
+# compute confidence intervals (CI)
+CI <- confint(m)
+
+# print out the odds ratios with their confidence intervals
+cbind(OR, CI)
+```
+Odds ratios can take values around 1 where 1 = signifies that the two events, let's say A and B, compared are independent and not correlated. Values above and below 1 mean that event A is associated (correlated) with event B, with higher values indicating that A increases the odds of B and vice versa, and values below 1 indicate a decrease in the probability of A with B and vice versa. With this in mind, we can see that, for example health and high alcohol use in this dataset are basically independent variables. On the contrary failures and studytime seem to seem to increase and decrease, respectively, in likelihood with high alcohol use. The confidence intervals depict how accurate our estimate of the odds ratios are - the higher the interval is, the less confidence we have in the estimate. As can be seen, the intervals in general are fairly small, except for failures and studytime. Therefore, although there seems to be a correlation between high alcohol use and these two variables, some caution must be taken in interpreting the result.
+
+For now, let's consider that high alcohol consumption is significantly correlated with failures and absences. We can next see examine the predictive power of our model using these variables.
+
+```{r}
+# Let's generate our linear model again with the significant variables
+m1 <- glm(high_use ~ failures + absences, data = alc_data, family = "binomial")
+
+# predict() the probability of high_use
+probabilities <- predict(m1, type = "response")
+
+library(dplyr)
+# add the predicted probabilities to 'alc_data'
+alc_data <- mutate(alc_data, probability = probabilities)
+
+# use the probabilities to make a prediction of high_use
+alc_data <- mutate(alc_data, prediction = high_use)
+
+# Define that the values of probability should be higher than 0.5 to be considered true.
+alc_data <- mutate(alc_data, prediction = probability > 0.5)
+
+# tabulate the target variable versus the predictions
+table(high_use = alc_data$high_use, prediction = alc_data$prediction)
+
+# Creating a point plot with the real values against the predicted probabilities
+library(ggplot2)
+g5 <- ggplot(alc_data, aes(x = high_use, y = probability, col = prediction))
+g5 + geom_point()
+
+```
+It seems that the probabilities predicted match quite well with the actual values. Let's test this further by computing for the amount of incorrect predictions in our model.
+
+```{r}
+# define a loss function (mean prediction error)
+loss_func <- function(class, prob) {
+  n_wrong <- abs(class - prob) > 0.5
+  mean(n_wrong)
+}
+
+# call loss_func to compute the average number of wrong predictions in the (training) data
+loss_func(class = alc_data$high_use, prob = alc_data$probability)
+```
+As can be seen, the average number of prediction errors is around 0.29. We can further cross-validate this:
+```{r}
+# compute the average number of wrong predictions in the (training) data
+K = nrow(alc_data)
+
+# K-fold cross-validation
+library(boot)
+cv <- cv.glm(data = alc_data, cost = loss_func, glmfit = m, K = nrow(alc_data))
+
+# average number of wrong predictions in the cross validation
+cv$delta[1]
+```
+The lower the cross validation value, the better - ideally it should be close to zero, which would indicate that our predictions are equal to the true values. At 0.24 it doesn't seem egregiously high but it does indicate that the predictive power of our model isn't fully accurate for the variables under study. I'd say the model performed about as well as my own guesses about the data.
