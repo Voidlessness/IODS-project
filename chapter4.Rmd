@@ -1,0 +1,211 @@
+# Analysis exercise 4 - Clustering and classification
+
+The dataset we are exploring this time comes from the MASS library in R, called "Boston". It contains data about housing values in Boston and how this value correlates with the following variables: 
+
+
+crim
+
+    per capita crime rate by town.
+zn
+
+    proportion of residential land zoned for lots over 25,000 sq.ft.
+indus
+
+    proportion of non-retail business acres per town.
+chas
+
+    Charles River dummy variable (= 1 if tract bounds river; 0 otherwise).
+nox
+
+    nitrogen oxides concentration (parts per 10 million).
+rm
+
+    average number of rooms per dwelling.
+age
+
+    proportion of owner-occupied units built prior to 1940.
+dis
+
+    weighted mean of distances to five Boston employment centres.
+rad
+
+    index of accessibility to radial highways.
+tax
+
+    full-value property-tax rate per $10,000.
+ptratio
+
+    pupil-teacher ratio by town.
+black
+
+    1000(Bk−0.63)21000(Bk−0.63)2 where BkBk is the proportion of blacks by town.
+lstat
+
+    lower status of the population (percent).
+medv
+
+    median value of owner-occupied homes in $1000s.
+
+
+```{r}
+library(MASS)
+
+# accessing the Boston data
+data("Boston")
+
+#exploring the dimensions of the data
+str(Boston)
+summary(Boston)
+```
+The dataset has 506 observations of 14 variables. With summary(), we can observe the minimum and maximum values of each variable, as well as their upper and lower quartiles, median and mean. Next, let's draw a graphical overview of the data.
+
+```{r}
+pairs(Boston)
+```
+Since there are many variables in the data, it is rather challenging to say much about the data from such a graphical overview. A better idea is to make a correlation matrix and plot it, and look at the correlations between the various variables. Let's do that! :
+
+```{r}
+library(tidyr)
+library(corrplot)
+
+# calculate the correlation matrix and round it
+cor_matrix <- cor(Boston) %>% round(2)
+# print the correlation matrix
+cor_matrix
+# visualize the correlation matrix
+corrplot(cor_matrix, method="circle")
+```
+From the plotted correlation matrix, we can easily visualize which variables in the data have either strong positive (blue) or negative correlation (red). For example we can take "medv" as our target value and see how housing value correlates with the other variables. The strongest negative correlation of "medv" is with "lstat" or lower status of the population, meaning that lower class population, in socioeconomic terms, seems to drive the median value of owner-occupied homes down in a given area. On the opposite end "rm" or average number of rooms per dwelling drives the median value of the homes up (which is rather sensible). Overall we can observe that the median value of homes goes down with ptratio (pupil-teacher ratio), tax (full-value property tax), rad (index of accessibility to radial highways), age (proportion of owner-occupied units built prior to 1940), nox (nitrogen oxides concentration (parts per 10 million)), indus (proportion of non-retail business acres per town) and crim (per capita crime rate by town). Conversely the median value of homes goes up with zn (proportion of residential land zoned for lots over 25,000 sq.ft), rm, dis (weighted mean of distances to five Boston employment centres), and black (1000(Bk−0.63)21000(Bk−0.63)2 where BkBk is the proportion of blacks by town).
+
+Next, let's scale the data and manipulate it a bit for further analysis. The scaling subtracts the column means from the corresponding columns and divides the difference with standard deviation. Further, I will perform a linear discrimination analysis (LDA) on the data and split the data in to a test dataset and a training dataset, which I will use later for seeing how well the LDA performs in predicting variables from the test data. Let's also create LDA biplot with crime as the target variable and all others as explanatory variables:
+
+```{r}
+library(dplyr)
+# scaling the variables using the scale() function and simultaneously creating a data frame.
+boston_scaled <- as.data.frame(scale(Boston))
+
+# summary of the scaled variables
+summary(boston_scaled)
+
+# transforming the crime variable in boston_scaled to numeric
+boston_scaled$crim <- as.numeric(boston_scaled$crim)
+
+# create a quantile vector of crime 
+bins <- quantile(boston_scaled$crim)
+
+# create a categorical variable 'crime'
+crime <- cut(boston_scaled$crim, breaks = bins, label = c("low", "med_low", "med_high", "high"), include.lowest = TRUE)
+
+# remove original crim from the dataset
+boston_scaled <- dplyr::select(boston_scaled, -crim)
+
+# add the new categorical value to scaled data
+boston_scaled <- data.frame(boston_scaled, crime)
+
+n <- nrow(boston_scaled)
+
+# choose randomly 80% of the rows
+ind <- sample(n,  size = n * 0.8)
+
+# creating a train set
+train <- boston_scaled[ind,]
+
+# creating a test set 
+test <- boston_scaled[-ind,]
+
+# save the correct classes from test data
+correct_classes <- test$crime
+
+# remove the crime variable from test data
+test <- dplyr::select(test, -crime)
+
+# linear discriminant analysis with crime as the target variable and all others as explanatory variables
+lda.fit <- lda(crime ~ ., data = train)
+
+# the function for lda biplot arrows
+lda.arrows <- function(x, myscale = 1, arrow_heads = 0.1, color = "red", tex = 0.75, choices = c(1,2)){
+  heads <- coef(x)
+  arrows(x0 = 0, y0 = 0, 
+         x1 = myscale * heads[,choices[1]], 
+         y1 = myscale * heads[,choices[2]], col=color, length = arrow_heads)
+  text(myscale * heads[,choices], labels = row.names(heads), 
+       cex = tex, col=color, pos=3)
+}
+
+# target classes as numeric
+classes <- as.numeric(train$crime)
+
+# plot the lda results
+plot(lda.fit, dimen = 2, col = classes, pch = "classes")
+lda.arrows(lda.fit, myscale = 2)
+
+```
+
+Now we can further predict the crime classes from the test data and cross-tabulate it.
+
+```{r}
+# predict classes with test data
+lda.pred <- predict(lda.fit, newdata = test)
+
+# cross tabulate the results
+table(correct = correct_classes, predicted = lda.pred$class)
+```
+The table above compares the "correct" crime classes in the data and tabulates it against the predicted values. As can be seen, there is much to be desired from the model, as the amount of crime classes predicted is much higher than the correct ones in many cases, although the model is quite accurate in predicting "high" crime.
+
+Next, let's calculate the distance between the observations in the data and do some clustering!
+
+```{r}
+library(MASS)
+library(ggplot2)
+library(GGally)
+data("Boston")
+boston_scaled <- as.data.frame(scale(Boston))
+
+# euclidean distance matrix
+dist_eu <- dist(boston_scaled)
+
+# look at the summary of the distances
+summary(dist_eu)
+
+# k-means clustering
+km <- kmeans(boston_scaled, centers = 3)
+
+# plot the Boston dataset with clusters
+pairs(boston_scaled[1:6], col = km$cluster)
+pairs(boston_scaled[7:10], col = km$cluster)
+pairs(boston_scaled[11:14], col = km$cluster)
+
+```
+The distance measurement gives us the information about the Euclidean distances between our observations. The mean distance seems to be ~5. Looking closer at the clustering, we can see that many of the variables do indeed reside quite close together. However, some optimization could be done in terms of the clustering. I have now used 3 clusters for the data but let's try to discover the optimal amount:
+
+```{r}
+set.seed(123)
+
+# determining the number of clusters
+k_max <- 10
+
+# calculating the total within sum of squares
+twcss <- sapply(1:k_max, function(k){kmeans(boston_scaled, k)$tot.withinss})
+
+# visualizing the results
+qplot(x = 1:k_max, y = twcss, geom = 'line')
+
+```
+The optimal amount of clusters can be visualized from the graph above where the line drops off most steeply. This seems to be around two. Let's draw our cluster plots again with 2 clusters!
+
+```{r}
+library(MASS)
+library(ggplot2)
+library(GGally)
+data("Boston")
+boston_scaled <- as.data.frame(scale(Boston))
+
+# k-means clustering
+km <- kmeans(boston_scaled, centers = 2)
+
+# plot the Boston dataset with clusters
+pairs(boston_scaled[1:6], col = km$cluster)
+pairs(boston_scaled[7:10], col = km$cluster)
+pairs(boston_scaled[11:14], col = km$cluster)
+
+```
