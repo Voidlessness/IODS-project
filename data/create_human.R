@@ -51,3 +51,39 @@ dim(hd_gii)
 library(readr)
 write.csv(hd_gii, file = 'C:/IODS/IODS-project/data/human.csv', row.names = FALSE)
 
+
+# Reading the human.csv file
+human <- read.csv(file = 'C:/IODS/IODS-project/data/human.csv')
+
+# Exploring structure and dimensions of human.
+str(human)
+dim(human)
+colnames(human)
+# Making the GNI variable numeric
+human$GNI <- str_replace(human$GNI, pattern=",", replace ="") %>% as.numeric
+
+colnames(human)
+
+# Excluding uneeded variables
+keepVariables <- c("Ctry", "labforc_r", "sec_edu_r", "Exp_yr_edu", "Life_exp", "GNI", "Mat_mort_r", "Ad_birth_r", "X.rep_parl")
+human <- select(human, one_of(keepVariables))
+colnames(human)
+
+# Removing all rows with missing values
+human <- filter(human, complete.cases(human))
+tail(human, n = 10)
+last <- nrow(human) - 7
+human <- human[1:last, ]
+
+# Defining rownames and country names
+rownames(human) <- human$Ctry
+
+# Removing the country column
+human <- select(human, -Ctry)
+
+# Checking for the dimensions of human. Indeed it has 155 observations and 8 variables!
+dim(human)
+human
+
+write.table(human, file = 'C:/IODS/IODS-project/data/human2.txt')
+read.table(file = 'C:/IODS/IODS-project/data/human2.txt', sep = "\t")

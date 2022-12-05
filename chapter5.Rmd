@@ -1,0 +1,149 @@
+# Analysis exercise 5: Dimensionality reduction
+
+```{r}
+date()
+```
+This time we are exploring a dataset called "human" which consists of human development index (HDI) data and various variables that are used to calcualte the HDI. On <https://hdr.undp.org/data-center/human-development-index#/indicies/HDI>  the HDI is described thus:
+
+"The Human Development Index (HDI) is a summary measure of average achievement in key dimensions of human development: a long and healthy life, being knowledgeable and have a decent standard of living. The HDI is the geometric mean of normalized indices for each of the three dimensions." 
+
+Let's first get a brief overview of the data.
+
+
+```{r}
+library(tidyverse)
+library(readr)
+human <- read.table(file = 'C:/IODS/IODS-project/data/human2.txt')
+str(human)
+dim(human)
+```
+
+
+
+The data consists of 155 observations (in this case countries) and 8 variables named:
+
+labforc_r : Labour Force Participation Rate ratio between males and females
+sec_edu_r : Population with Secondary Education ratio between males and females
+Exp_yr_edu: Expected Years of Education
+Life_exp  : Life Expectancy at Birth
+GNI       : Gross National Income (GNI) per Capita
+Mat_mort_r: Maternal Mortality Ratio
+Ad_birth_r: Adolescent Birth Rate
+X.rep_parl: Percent Representation in Parliament
+
+Next, let's summarize the data and get a graphical overview:
+
+```{r}
+summary(human)
+library(ggplot2)
+library(dplyr)
+library(GGally)
+p <- ggpairs(human, lower = list(combo = wrap("facethist", bins = 20)))
+p
+```
+
+
+
+The variables seem to not be very normally distributed and seem to contain many outliers.
+
+The relations between the datapoints can be further explored by making a simple correlation plot:
+
+```{r}
+library(tidyr)
+library(corrplot)
+cor_matrix <- cor(human) %>% round(2)
+corrplot(cor_matrix, method="circle")
+```
+
+
+In general we may observe that we have rather strong positive and negative correlations between the variables. The ones that catch the eye especially are the strong negative correlation between life expectancy and maternal mortality ratio and the strong positive correlation between life expectancy and expected years of education.
+
+Next, let's perform a principal component analysis (PCA) on the data and draw a biplot of the PCA.
+
+
+```{r}
+humanpca <- prcomp(human)
+sumr <- summary(humanpca)
+sumr
+
+# Checking for the variability in the principal components by rounded percetanges of variance
+pca_var <- round(100*sumr$importance[2, ], digits = 1)
+pca_var
+
+# drawing a biplot of the data
+pc_plot <- paste0(names(pca_var), " (", pca_var, "%)")
+biplot(humanpca, cex = c(0.8, 1), col = c("grey40", "deeppink2"), xlab = pc_plot[1], ylab = pc_plot[2], xlim = c(0.5, -0.5))
+
+```
+
+
+Considering the data in its native form, principcal component 1 seems to explain nearly 100% of the variability of the data. Looking at the PCA biplot, especially the variable GNI seems to explain a lot of the variation in the data. 
+
+Next, let's standardize the data and have an overview of it again.
+
+```{r}
+# standardizing the variables and checking the variance of each PCA again, drawing a new biplot of the standardized data
+human_stdr <- scale(human)
+
+
+pca_stdr <- prcomp(human_stdr)
+
+s2 <- summary(pca_stdr)
+s2
+
+pca_var2 <- round(100*s2$importance[2, ], digits = 1)
+pca_var2
+
+# drawing a biplot of the data
+pc_plot <- paste0(names(pca_var2), " (", pca_var2, "%)")
+biplot(pca_stdr, cex = c(0.8, 1), col = c("grey40", "deeppink2"), xlab = pc_plot[1], ylab = pc_plot[2], xlim = c(0.2, -0.2))
+
+```
+
+
+
+Now when the data is standardized, PC1 explains only 53.6% of the variation in the data and PC2 seems to gain a much larger role with explaining about 16.2% of the variation. Looking at the new biplot the observations seem much more evenly distributed and the explanatory variables seem to have a much greater role in explaining the distribution of the data (not just GNI alone). For example life expectancy, expected years of education and population with secondary Education ratio between males and females seem to affect a large part of the distribution of the variables.
+
+
+Next, we shall look at a different dataset called "tea" and perform a multiple correspondence analysis (MCA) on it.
+
+
+```{r}
+library(FactoMineR)
+data(tea)
+tea <- read.csv("https://raw.githubusercontent.com/KimmoVehkalahti/Helsinki-Open-Data-Science/master/datasets/tea.csv", stringsAsFactors = TRUE)
+str(tea)
+```
+
+
+
+I will perform MCA on a few of the variables in the data
+
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+# column names to keep in the dataset
+keep_cols <- c("Tea", "relaxing", "healthy", "sugar", "home", "work")
+
+tea2 <- dplyr::select(tea, one_of(keep_cols))
+
+# visualizing the data
+gather(tea2) %>% ggplot(aes(value)) + 
+facet_wrap("key", scales = "free") + 
+geom_bar() + 
+theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8))
+
+```
+
+
+From this general overview of the chosen variables, we can see that, for example, the responders in the data prefer to drink tea at home, mostly Earl Grey and find it relaxing/healthy. Interestingly sugar usage in tea is quite even.
+
+
+```{r}
+mca <- MCA(tea2)
+summary(mca)
+plot(mca, invisible=c("ind"), habillage = "quali")
+```
+
