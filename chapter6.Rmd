@@ -1,0 +1,197 @@
+# Analysis exercise 6 
+
+```{r}
+library(tidyverse)
+library(GGally)
+library(ggplot2)
+library(dplyr)
+```
+
+In the following task, the analysis from Chapter 8 and chapter 9 from Multivariate Analysis for the Behavioral Sciences (MABS) is repeated but with our own longitudinal data RATS and BPRS. First we shall deal with the RATS data which contains repeated weight measurements of 16 rats, divided in to three different diet groups. First let's load the data.
+
+
+
+```{r}
+
+BPRS_long <- readRDS("data/BPRS_long.rds")
+RATS_long <- readRDS("data/RATS_long.rds")
+```
+
+Next, let's get a brief graphical overview of the RATS data.
+
+
+```{r}
+ggplot(RATS_long, aes(x = Time, y = Weight, linetype = ID)) +
+  geom_line() +
+  scale_linetype_manual(values = rep(1:10, times = 4)) +
+  facet_grid(. ~ Group, labeller = label_both) + 
+  theme(legend.position = "none")
+```
+
+It seems that rats in group 1 weight less overall than the rats in the other two groups. The general weight increase also seems to not be as steep as in the other two groups. Group 2 seems to have one very fat outlier-rat. Since the weights between the groups seem to vary so much, it is best to standardize the weights in the data to get a clearer overview of what is going on. So let's do that and plot the data again.
+
+```{r}
+# Standardizing the weights
+RATS_long <- RATS_long %>%
+  group_by(Group) %>%
+  mutate(Weight_std = (Weight - mean(Weight))/sd(Weight) ) %>%
+  ungroup()
+
+# Plotting again
+ggplot(RATS_long, aes(x = Time, y = Weight_std, linetype = ID)) +
+  geom_line() +
+  scale_linetype_manual(values = rep(1:10, times = 4)) +
+  facet_grid(. ~ Group, labeller = label_both) + 
+  theme(legend.position = "none")
+
+```
+
+
+Now we get a sligtly clearer picture of the distribution of the data in each group. Group 1 seems to have fairly nicely clustering data, although one lower weight outlier exists. Interestingly, we can see now that the weight gained in group 1 and 3 seem to have the steepest increase. In group 2, with the heavier rats, there doesn't seem to be as much overall weight gain, except with the one chuncky outlier.
+
+To get an even clearer idea of what is going on in the data, it is best to also plot the means within each group. For this, it might be useful to plot this with a new variable "weight_g" where we have the mean weight gained within each group.
+
+
+```{r}
+
+RATS_long$Weight_g <- NA
+Weight_init <- RATS_long$Weight[which(RATS_long$Time == 1)]
+for(i in levels(as.factor(RATS_long$Time))) {
+  rows <- which(RATS_long$Time == as.numeric(i))
+  RATS_long$Weight_g[rows] <- RATS_long$Weight[rows] - Weight_init
+}
+
+RATSL <- RATS_long %>%
+  group_by(Group, Time) %>%
+  summarise(mean_gain = mean(Weight_g), se = sd(Weight_g) / length(Weight_g)) %>%
+  ungroup() %>%
+  group_by(Group)
+
+# Plot the weight gain mean profiles
+ggplot(RATSL, aes(x = Time, y = mean_gain, linetype = Group, shape = Group)) +
+  geom_line() +
+  scale_linetype_manual(values = c(1, 2, 3)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = mean_gain - se, ymax = mean_gain + se, linetype = "1"), width = 0.3) +
+  scale_shape_manual(values = c(1, 2, 3)) +
+  theme(legend.position = c(0.2, 0.8)) +
+  scale_y_continuous(name = "Weight Gain (Grams)")
+  scale_x_continuous(name = "Time")
+
+```
+
+
+Again, our view of the data changes. Contrary to what I interpreted above, it seems that group 1 and 3 have had on average much less weight gained than in group 2 with the chunkier rats. We can further illustrate this visually by doing a simple boxplot of the average weight gained in each group.
+
+```{r}
+RATSL2 <- RATS_long %>%
+  filter(Time == max(Time)) %>%
+  group_by(Group, ID) %>%
+  summarise(mean = mean(Weight_g))%>%
+  ungroup()
+
+# Draw a boxplot 
+ggplot(RATSL2, aes(x = Group, y = mean)) +
+  geom_boxplot() +
+  stat_summary(fun = "mean", geom = "point", shape = 23, size = 4, fill = "white") +
+  scale_y_continuous(name = "% of average weight gained")
+
+```
+
+As is clearly evident, the rats in group 2 have gained significantly more weight on average than group 1. Group 3 is a bit closer to group 2, so I would doubt this difference is significant. 
+
+Next let's have a look at the BPRS data which contains repeated measures of 40 male subjects, divided in to two different treatment groups. A psychiatric rating scale was used to evaluate different symptoms of the subjects, values ranging from 1 to 7. It is this rating scale that is termed "BPRS". First, let's plot the data.
+
+
+```{r}
+ggplot(BPRS_long, aes(x = weeks, y = bprs, linetype = subject)) +
+  geom_line() +
+  facet_grid(. ~ treatment, labeller = label_both) + 
+  theme(legend.position = "none")
+
+```
+
+
+
+Overall, it seems that both treatments have been reducing the BPRS rating overall, perhaps treatment 1 seems to be slightly more effective at first glance. To get a better sense of what is going on, we can start out by forming a simple linear regression model of the data.
+
+
+
+
+
+```{r}
+# Linear regression model
+lm1 <- lm(bprs ~ weeks + treatment, data = BPRS_long)
+
+# Summary of the model
+summary(lm1)
+
+```
+
+
+
+Based on the results of the linear model, there is a signicant downward trend of the BPRS rating as the weeks go on, the rating lowering by 2.27 points per week. Between the two treatments, however, there does not seem to be a significant difference, indicating that either treatment is working almost equally well. To get even greater detail, let's perform a random intercept model on the data and see what we get.
+
+
+```{r}
+
+library(lme4)
+
+RIM <- lmer(bprs ~ weeks+ treatment + (1 | subject), data = BPRS_long, REML = FALSE)
+
+summary(RIM)
+
+```
+
+
+
+
+The interpretation of the data does not change much with this model - the BPRS rating drop over the weeks of both treatments remains the same, and the treatments themselves do not seem to be significantly different from each other in producing this effect. However, we can still explore this more by doing a random intercept model and combining it with a random slope model.
+
+
+```{r}
+
+RIM2 <- lmer(bprs ~ weeks +treatment + (weeks| subject), data = BPRS_long, REML = FALSE)
+
+summary(RIM2)
+
+```
+
+
+
+
+Yet still, our combined model does not change the result. In either case, it is good to test for which model fits better for the data, and for that we may do a simple ANOVA test on the two models.
+
+```{r}
+
+anova(RIM,RIM2)
+
+```
+
+
+Based on the results, it seems that our second model with the combined random intercept and random slope performs better. Since the latter model performed better, we shall use it to redraw our plots of the data.
+
+
+```{r}
+
+
+BPRSL_RIM <- BPRS_long
+BPRSL_RIM$bprs <- predict(RIM2)
+
+
+BPRS_long$fitted <- 0
+BPRSL_RIM$fitted <- 1
+BPRSL_combined <- rbind(BPRS_long, BPRSL_RIM)
+BPRSL_combined$fitted <- as.factor(BPRSL_combined$fitted)
+
+
+ggplot(BPRSL_combined) +
+  geom_line(aes(x = weeks, y = bprs, linetype = subject, col = fitted)) +
+  scale_linetype_manual(values = rep(1:10, times = 4)) +
+  facet_grid(. ~ treatment, labeller = label_both) + 
+  theme(legend.position = "none")
+
+```
+
+
+
